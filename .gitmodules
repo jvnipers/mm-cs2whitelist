@@ -8,3 +8,6 @@
 [submodule "vendor/mm-cs2admin"]
 	path = vendor/mm-cs2admin
 	url = https://github.com/femboykz/mm-cs2admin
+[submodule "vendor/sql_mm"]
+	path = vendor/sql_mm
+	url = https://github.com/zer0k-z/sql_mm
