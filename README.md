@@ -2,21 +2,25 @@
 
 Metamod: Source plugin for CS2 server whitelisting. Restricts server access to a list of SteamIDs and IP addresses defined in a text file.
 
-## Features
+## Usage
 
-- Allow/deny by **SteamID** (`STEAM_0:X:Y` or SteamID64) or **IPv4 address**
-- **Admin immunity** - any player with a cs2admin flag can bypass the whitelist check (requires [mm-cs2admin](https://github.com/FemboyKZ/mm-cs2admin))
-- Ingame **admin commands** with flag-based access control via mm-cs2admin
-- Whitelist reloads automatically on every map change
-- Thread-safe, synchronous - no database required
+### Requirements
 
-## Installation
+- Dedicated CS2 Server. (Recommended to use SteamRT3 Docker)
+- Metamod: Source 2.0.
+- (Optional) [sql_mm](https://github.com/zer0k-z/sql_mm) plugin.
+- (Optional) MySQL Database.
+- (Optional) [mm-cs2admin](https://github.com/FemboyKZ/mm-cs2admin) plugin.
 
-1. Download the [latest release](https://github.com/FemboyKZ/mm-cs2whitelist/releases/latest) and extract it in your server's root folder (`~/game/csgo/`)
-2. Create a new file or rename the .example to `whitelist.txt` and add your selection of people's IDs/IPs to the file.
-3. (Optional) Install [mm-cs2admin](https://github.com/FemboyKZ/mm-cs2admin) to enable in-game admin commands and admin immunity.
+### Installation
 
-## Configuration
+1. Install the dependencies.
+2. Download the [latest release](https://github.com/FemboyKZ/mm-cs2whitelist/releases/latest) and extract it in your server's root folder (`~/game/csgo/`)
+3. Configure the core config file in `/cfg/cs2whitelist/core.cfg`.
+4. Create a new file or rename the .example to `whitelist.txt` and add your selection of user's IDs/IPs to the file.
+    (Alternative) Configure your whitelist via the commands, or by directly modifying the database.
+
+### Configuration
 
 `cfg/cs2whitelist/whitelist.txt` - one entry per line:
 
@@ -28,7 +32,7 @@ Supported entry types:
 | SteamID64 | `76561198012345678` |
 | IPv4 address | `192.168.1.100` |
 
-## ConVars
+### ConVars
 
 | ConVar | Default | Description |
 | --- | --- | --- |
@@ -37,7 +41,7 @@ Supported entry types:
 | `mm_whitelist_kickmessage` | `You are not whitelisted on this server.` | Console message sent to kicked players. |
 | `mm_whitelist_filename` | `whitelist.txt` | File name inside `cfg/cs2whitelist/`. |
 
-## Admin commands
+### Admin commands
 
 All commands require [mm-cs2admin](https://github.com/FemboyKZ/mm-cs2admin) for in-game use.
 Without it, commands can only be issued from the **server console**.
@@ -72,6 +76,7 @@ ambuild
 - [ServerWhitelistAdvanced](https://forums.alliedmods.net/showthread.php?p=1830686)
 - [SourceMod](https://github.com/alliedmodders/sourcemod)
 - [zer0.k's MetaMod Sample plugin fork](https://github.com/zer0k-z/mm_misc_plugins)
+- [sql_mm plugin](https://github.com/zer0k-z/sql_mm)
 - [cs2kz-metamod](https://github.com/KZGlobalTeam/cs2kz-metamod)
 
 ## Contributing
