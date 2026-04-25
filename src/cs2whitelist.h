@@ -5,6 +5,8 @@
 #include "version_gen.h"
 #include "public/ics2whitelist.h"
 
+#include <vector>
+
 class CS2WhitelistPlugin : public ISmmPlugin, public IMetamodListener, public ICS2Whitelist
 {
 public:
@@ -69,8 +71,22 @@ public: // ICS2Whitelist (delegates to g_WLManager)
 	bool IsEntryWhitelisted(const char *entry) const override;
 	int GetEntryCount() const override;
 
+	bool IsPlayerWhitelistCached(int slot) const override;
+	int GetWhitelistCacheCount() const override;
+
+	bool IsPlayerBlacklisted(int slot) const override;
+	int GetBlacklistCacheCount() const override;
+
+	bool ReloadFile() override;
+	bool AddEntry(const char *entry) override;
+	bool RemoveEntry(const char *entry) override;
+
+	void AddListener(ICS2WhitelistListener *listener) override;
+	void RemoveListener(ICS2WhitelistListener *listener) override;
+
 private:
 	bool m_bLateLoaded = false;
+	std::vector<ICS2WhitelistListener *> m_listeners;
 };
 
 extern CS2WhitelistPlugin g_ThisPlugin;

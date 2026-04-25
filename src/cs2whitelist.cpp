@@ -1,4 +1,5 @@
 #include <cstring>
+#include <algorithm>
 
 #include "cs2whitelist.h"
 #include "db/wl_config.h"
@@ -92,6 +93,7 @@ void CS2WhitelistPlugin::AllPluginsLoaded()
 		cv_immunity.Set(g_WLConfig.immunity);
 		cv_kickmessage.Set(CUtlString(g_WLConfig.kickMessage.c_str()));
 		cv_filename.Set(CUtlString(g_WLConfig.filename.c_str()));
+		cv_log.Set(g_WLConfig.logMode);
 		META_CONPRINTF("[WHITELIST] Loaded core.cfg.\n");
 	}
 	else
@@ -116,6 +118,8 @@ void CS2WhitelistPlugin::AllPluginsLoaded()
 void CS2WhitelistPlugin::OnLevelInit(char const *pMapName, char const *pMapEntities, char const *pOldLevel, char const *pLandmarkName, bool loadGame,
 									 bool background)
 {
+	g_WLManager.ClearBlacklistCache();
+	g_WLManager.ClearWhitelistCache();
 	g_WLManager.LoadFile();
 
 	if (g_WLDatabase.IsConnected())
@@ -162,27 +166,56 @@ void CS2WhitelistPlugin::Hook_ClientPutInServer(CPlayerSlot slot, char const *ps
 	{
 		return;
 	}
+	if (g_WLManager.IsWhitelistCached(p->xuid))
+	{
+		return;
+	}
 
 	if (cv_immunity.Get() && g_pCS2Admin && g_pCS2Admin->IsAdmin(idx))
 	{
 		META_CONPRINTF("[WHITELIST] Slot %d (%s) has admin immunity.\n", idx, pszName ? pszName : "?");
+		g_WLManager.AddToWhitelistCache(p->xuid);
+		return;
+	}
+
+	if (g_WLManager.IsBlacklisted(p->xuid))
+	{
+		const char *msg = cv_kickmessage.Get().Get();
+		char kickmsg[512];
+		snprintf(kickmsg, sizeof(kickmsg), "[WHITELIST] %s\n", msg);
+		if (g_pEngine)
+		{
+			g_pEngine->ClientPrintf(slot, kickmsg);
+			g_pEngine->DisconnectClient(slot, NETWORK_DISCONNECT_KICKED, msg);
+		}
 		return;
 	}
 
 	if (g_WLManager.IsPlayerWhitelisted(idx))
 	{
+		g_WLManager.AddToWhitelistCache(p->xuid);
 		return;
+	}
+
+	for (ICS2WhitelistListener *l : m_listeners)
+	{
+		if (l->OnWhitelistKickPre(idx) == WLKickResult::Block)
+		{
+			g_WLManager.AddToWhitelistCache(p->xuid);
+			return;
+		}
 	}
 
 	const char *msg = cv_kickmessage.Get().Get();
 
 	if (g_pEngine)
 	{
+		WLLogKick(pszName, p->xuid, p->ip.c_str(), false);
+		g_WLManager.AddToBlacklistCache(p->xuid);
+
 		char kickmsg[512];
 		snprintf(kickmsg, sizeof(kickmsg), "[WHITELIST] %s\n", msg);
 		g_pEngine->ClientPrintf(slot, kickmsg);
-
-		META_CONPRINTF("[WHITELIST] Kicking slot %d (%s, ip=%s): not whitelisted.\n", idx, pszName ? pszName : "?", p->ip.c_str());
 
 		g_pEngine->DisconnectClient(slot, NETWORK_DISCONNECT_KICKED, msg);
 	}
@@ -208,4 +241,58 @@ bool CS2WhitelistPlugin::IsEntryWhitelisted(const char *entry) const
 int CS2WhitelistPlugin::GetEntryCount() const
 {
 	return g_WLManager.GetEntryCount();
+}
+
+bool CS2WhitelistPlugin::IsPlayerWhitelistCached(int slot) const
+{
+	const PlayerInfo *p = g_WLPlayerManager.GetPlayer(slot);
+	return p && g_WLManager.IsWhitelistCached(p->xuid);
+}
+
+int CS2WhitelistPlugin::GetWhitelistCacheCount() const
+{
+	return g_WLManager.GetWhitelistCacheCount();
+}
+
+bool CS2WhitelistPlugin::IsPlayerBlacklisted(int slot) const
+{
+	const PlayerInfo *p = g_WLPlayerManager.GetPlayer(slot);
+	return p && g_WLManager.IsBlacklisted(p->xuid);
+}
+
+int CS2WhitelistPlugin::GetBlacklistCacheCount() const
+{
+	return g_WLManager.GetBlacklistCacheCount();
+}
+
+bool CS2WhitelistPlugin::ReloadFile()
+{
+	return g_WLManager.LoadFile();
+}
+
+bool CS2WhitelistPlugin::AddEntry(const char *entry)
+{
+	bool ok = g_WLManager.AddEntry(entry);
+	if (ok)
+		g_WLManager.SaveFile();
+	return ok;
+}
+
+bool CS2WhitelistPlugin::RemoveEntry(const char *entry)
+{
+	bool ok = g_WLManager.RemoveEntry(entry);
+	if (ok)
+		g_WLManager.SaveFile();
+	return ok;
+}
+
+void CS2WhitelistPlugin::AddListener(ICS2WhitelistListener *listener)
+{
+	if (listener)
+		m_listeners.push_back(listener);
+}
+
+void CS2WhitelistPlugin::RemoveListener(ICS2WhitelistListener *listener)
+{
+	m_listeners.erase(std::remove(m_listeners.begin(), m_listeners.end(), listener), m_listeners.end());
 }

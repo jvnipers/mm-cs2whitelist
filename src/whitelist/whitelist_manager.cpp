@@ -4,7 +4,9 @@
 #include "db/wl_database.h"
 
 #include <eiface.h>
+#include <filesystem>
 #include <fstream>
+#include <ctime>
 
 // ConVars
 CConVar<bool> cv_enable("mm_whitelist_enable", FCVAR_RELEASE | FCVAR_GAMEDLL, "Enable the server whitelist (1) or disable it (0).", true);
@@ -22,6 +24,11 @@ CConVar<CUtlString> cv_filename("mm_whitelist_filename", FCVAR_RELEASE | FCVAR_G
 								"Whitelist file name, relative to <game>/cfg/cs2whitelist/. "
 								"Path separators are stripped to prevent directory traversal.",
 								"whitelist.txt");
+
+CConVar<int> cv_log("mm_whitelist_log", FCVAR_RELEASE | FCVAR_GAMEDLL,
+				   "Log failed join attempts to console and daily log file. "
+				   "0=off  1=always  2=once per player per map.",
+				   0, true, 0, true, 2);
 
 // Global instance
 WLManager g_WLManager;
@@ -48,6 +55,8 @@ std::string GetWhitelistFilePath()
 bool WLManager::LoadFile()
 {
 	m_whitelist.clear();
+	m_blacklistCache.clear();
+	m_whitelistCache.clear();
 
 	std::string path = GetWhitelistFilePath();
 	std::ifstream file(path);
@@ -178,5 +187,91 @@ void WLManager::PrintList(int slot) const
 	for (const auto &e : m_whitelist)
 	{
 		ReplyToSlot(slot, "  %s\n", e.c_str());
+	}
+}
+
+// Blacklist cache
+bool WLManager::IsBlacklisted(uint64_t xuid) const
+{
+	return xuid != 0 && m_blacklistCache.count(xuid) > 0;
+}
+
+void WLManager::AddToBlacklistCache(uint64_t xuid)
+{
+	if (xuid != 0)
+		m_blacklistCache.insert(xuid);
+}
+
+void WLManager::ClearBlacklistCache()
+{
+	m_blacklistCache.clear();
+}
+
+// Whitelist cache
+bool WLManager::IsWhitelistCached(uint64_t xuid) const
+{
+	return xuid != 0 && m_whitelistCache.count(xuid) > 0;
+}
+
+void WLManager::AddToWhitelistCache(uint64_t xuid)
+{
+	if (xuid != 0)
+		m_whitelistCache.insert(xuid);
+}
+
+void WLManager::ClearWhitelistCache()
+{
+	m_whitelistCache.clear();
+}
+
+// Kick logging
+void WLLogKick(const char *name, uint64_t xuid, const char *ip, bool alreadyCached)
+{
+	int logMode = cv_log.Get();
+	if (logMode == 0)
+		return;
+	// mode 2: only log first time (alreadyCached == false means first rejection)
+	if (logMode == 2 && alreadyCached)
+		return;
+
+	std::string authid = xuid ? SteamID64ToAuthId(xuid) : "unknown";
+
+	time_t now = time(nullptr);
+	struct tm tm_info;
+#ifdef _WIN32
+	localtime_s(&tm_info, &now);
+#else
+	localtime_r(&now, &tm_info);
+#endif
+	char timebuf[32];
+	strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", &tm_info);
+
+	char datebuf[16];
+	strftime(datebuf, sizeof(datebuf), "%Y-%m-%d", &tm_info);
+
+	const char *safeName = name ? name : "?";
+	const char *safeIp = ip ? ip : "?";
+
+	META_CONPRINTF("[WHITELIST] [%s] Kick: \"%s\" xuid=%llu authid=%s ip=%s\n",
+				   timebuf, safeName,
+				   static_cast<unsigned long long>(xuid),
+				   authid.c_str(), safeIp);
+
+	char logDir[512];
+	snprintf(logDir, sizeof(logDir), "%s/addons/cs2whitelist/logs", g_SMAPI->GetBaseDir());
+
+	std::error_code ec;
+	std::filesystem::create_directories(logDir, ec);
+
+	char logPath[600];
+	snprintf(logPath, sizeof(logPath), "%s/%s.log", logDir, datebuf);
+
+	std::ofstream f(logPath, std::ios::app);
+	if (f.is_open())
+	{
+		f << "[" << timebuf << "] Kick: \""
+		  << safeName << "\" xuid=" << xuid
+		  << " authid=" << authid
+		  << " ip=" << safeIp << "\n";
 	}
 }

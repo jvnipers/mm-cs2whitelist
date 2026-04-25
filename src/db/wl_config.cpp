@@ -40,8 +40,10 @@ static void OnKV(const std::string &section, const std::string &key, const std::
 		else if (k == "filename")
 		{
 			cfg->filename = value;
-		}
-	}
+		}		else if (k == "log")
+		{
+			cfg->logMode = std::atoi(value.c_str());
+		}	}
 	else if (sec == "database")
 	{
 		if (k == "enabled")

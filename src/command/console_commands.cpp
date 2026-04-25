@@ -13,7 +13,11 @@ CON_COMMAND_F(mm_whitelist_status, "Show whitelist status (enabled, entry count,
 		return;
 	}
 
-	ReplyToSlot(slot, "[WHITELIST] enabled=%s | entries=%d | file=%s\n", cv_enable.Get() ? "yes" : "no", g_WLManager.GetEntryCount(),
+	ReplyToSlot(slot, "[WHITELIST] enabled=%s | entries=%d | wl_cache=%d | bl_cache=%d | file=%s\n",
+				cv_enable.Get() ? "yes" : "no",
+				g_WLManager.GetEntryCount(),
+				g_WLManager.GetWhitelistCacheCount(),
+				g_WLManager.GetBlacklistCacheCount(),
 				cv_filename.Get().Get());
 }
 
@@ -102,4 +106,48 @@ CON_COMMAND_F(mm_whitelist_remove,
 	{
 		ReplyToSlot(slot, "[WHITELIST] '%s' was not found in the whitelist.\n", entry);
 	}
+}
+
+CON_COMMAND_F(mm_whitelist_exist,
+			  "Check whether a SteamID or IP is in the currently loaded whitelist. "
+			  "Usage: mm_whitelist_exist <steamid|ip>",
+			  FCVAR_GAMEDLL | FCVAR_RELEASE)
+{
+	int slot = context.GetPlayerSlot().Get();
+	if (!HasAdminAccess(slot, CS2ADMIN_FLAG_GENERIC))
+	{
+		return;
+	}
+
+	if (args.ArgC() < 2)
+	{
+		ReplyToSlot(slot, "[WHITELIST] Usage: mm_whitelist_exist <steamid|ip>\n");
+		return;
+	}
+
+	const char *entry = args.Arg(1);
+	if (g_WLManager.IsEntryWhitelisted(entry))
+	{
+		ReplyToSlot(slot, "[WHITELIST] '%s' IS in the whitelist.\n", entry);
+	}
+	else
+	{
+		ReplyToSlot(slot, "[WHITELIST] '%s' is NOT in the whitelist.\n", entry);
+	}
+}
+
+CON_COMMAND_F(mm_whitelist_cache_clear,
+			  "Clear both the per-map whitelist cache (confirmed-allowed) and rejection cache (confirmed-rejected). "
+			  "Forces all players to re-run the full whitelist check on next connect.",
+			  FCVAR_GAMEDLL | FCVAR_RELEASE)
+{
+	int slot = context.GetPlayerSlot().Get();
+	if (!HasAdminAccess(slot, CS2ADMIN_FLAG_CONVARS))
+	{
+		return;
+	}
+
+	g_WLManager.ClearBlacklistCache();
+	g_WLManager.ClearWhitelistCache();
+	ReplyToSlot(slot, "[WHITELIST] Cache cleared.\n");
 }
