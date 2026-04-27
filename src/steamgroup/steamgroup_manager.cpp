@@ -31,12 +31,15 @@ static int ExtractIntTag(const std::string &body, const char *open, const char *
 void SteamGroupManager::Init(const Config &cfg)
 {
 	m_cfg   = cfg;
-	m_pHttp = SteamGameServerHTTP();
+	m_pHttp = SteamGameServerHTTP(); // may be null at this point; re-acquired lazily
 
-	if (m_cfg.enabled && !m_pHttp)
+	if (m_cfg.enabled)
 	{
-		META_CONPRINTF("[WHITELIST] SteamGroup: SteamGameServerHTTP() returned null - group checks disabled.\n");
-		m_cfg.enabled = false;
+		if (m_pHttp)
+			META_CONPRINTF("[WHITELIST] SteamGroup: initialized (method=%s).\n",
+			               m_cfg.method == Method::API ? "api" : "xml");
+		else
+			META_CONPRINTF("[WHITELIST] SteamGroup: SteamGameServerHTTP() not ready yet, will retry.\n");
 	}
 }
 
@@ -64,8 +67,20 @@ void SteamGroupManager::Shutdown()
 // FetchGroups - kick off XML pre-fetch for all configured groups
 void SteamGroupManager::FetchGroups()
 {
-	if (!m_cfg.enabled || m_pHttp == nullptr)
+	if (!m_cfg.enabled)
 		return;
+
+	// Lazily acquire HTTP interface if it wasn't ready at Init() time
+	if (!m_pHttp)
+	{
+		m_pHttp = SteamGameServerHTTP();
+		if (!m_pHttp)
+		{
+			META_CONPRINTF("[WHITELIST] SteamGroup: FetchGroups() - SteamGameServerHTTP() still null, skipping.\n");
+			return;
+		}
+		META_CONPRINTF("[WHITELIST] SteamGroup: acquired SteamGameServerHTTP().\n");
+	}
 
 	// Build effective group list: config IDs + IDs from whitelist.txt
 	{
@@ -166,11 +181,16 @@ void SteamGroupManager::StartXmlFetch(uint64_t groupId, int page)
 	               (unsigned long long)groupId, page);
 }
 
-// API per-player fetch
-void SteamGroupManager::StartApiFetch(int slot, uint64_t xuid)
+// API per-player fetch; returns true if the request was successfully enqueued
+bool SteamGroupManager::StartApiFetch(int slot, uint64_t xuid)
 {
 	if (!m_pHttp || m_cfg.apiKey.empty())
-		return;
+	{
+		META_CONPRINTF("[WHITELIST] SteamGroup: StartApiFetch skipped (http=%s key=%s)\n",
+		               m_pHttp ? "ok" : "null",
+		               m_cfg.apiKey.empty() ? "empty" : "set");
+		return false;
+	}
 
 	char url[600];
 	snprintf(url, sizeof(url),
@@ -179,7 +199,11 @@ void SteamGroupManager::StartApiFetch(int slot, uint64_t xuid)
 
 	HTTPRequestHandle hReq = m_pHttp->CreateHTTPRequest(k_EHTTPMethodGET, url);
 	if (hReq == INVALID_HTTPREQUEST_HANDLE)
-		return;
+	{
+		META_CONPRINTF("[WHITELIST] SteamGroup: failed to create API request for slot=%d xuid=%llu\n",
+		               slot, (unsigned long long)xuid);
+		return false;
+	}
 
 	m_requests.emplace_back();
 	RequestCtx &ctx = m_requests.back();
@@ -195,7 +219,9 @@ void SteamGroupManager::StartApiFetch(int slot, uint64_t xuid)
 	{
 		m_pHttp->ReleaseHTTPRequest(hReq);
 		m_requests.pop_back();
-		return;
+		META_CONPRINTF("[WHITELIST] SteamGroup: failed to send API request for slot=%d xuid=%llu\n",
+		               slot, (unsigned long long)xuid);
+		return false;
 	}
 
 	ctx.callResult.Set(hCall, this, &SteamGroupManager::OnHTTPResponse);
@@ -204,14 +230,36 @@ void SteamGroupManager::StartApiFetch(int slot, uint64_t xuid)
 	pp.xuid      = xuid;
 	pp.startTime = std::chrono::steady_clock::now();
 	m_pendingApi[slot] = pp;
+
+	META_CONPRINTF("[WHITELIST] SteamGroup: API check started for slot=%d xuid=%llu\n",
+	               slot, (unsigned long long)xuid);
+	return true;
 }
 
 // CheckPlayer - called from Hook_ClientPutInServer after the file-whitelist miss
 bool SteamGroupManager::CheckPlayer(int slot, uint64_t xuid, bool &pending)
 {
 	pending = false;
-	if (!m_cfg.enabled || m_effectiveGroupIds.empty())
+
+	// Lazily acquire HTTP interface
+	if (!m_pHttp)
+		m_pHttp = SteamGameServerHTTP();
+
+	if (!m_cfg.enabled)
+	{
+		META_CONPRINTF("[WHITELIST] SteamGroup: CheckPlayer slot=%d - disabled.\n", slot);
 		return false;
+	}
+	if (!m_pHttp)
+	{
+		META_CONPRINTF("[WHITELIST] SteamGroup: CheckPlayer slot=%d - no HTTP interface.\n", slot);
+		return false;
+	}
+	if (m_effectiveGroupIds.empty())
+	{
+		META_CONPRINTF("[WHITELIST] SteamGroup: CheckPlayer slot=%d - no group IDs configured.\n", slot);
+		return false;
+	}
 
 	if (m_cfg.method == Method::XML)
 	{
@@ -235,7 +283,12 @@ bool SteamGroupManager::CheckPlayer(int slot, uint64_t xuid, bool &pending)
 			pending = true;
 			return false;
 		}
-		StartApiFetch(slot, xuid);
+		if (!StartApiFetch(slot, xuid))
+		{
+			META_CONPRINTF("[WHITELIST] SteamGroup: StartApiFetch failed for slot=%d xuid=%llu\n",
+			               slot, (unsigned long long)xuid);
+			return false; // fail open to kick rather than hang
+		}
 		pending = true;
 		return false;
 	}
@@ -307,7 +360,12 @@ void SteamGroupManager::OnHTTPResponse(HTTPRequestCompleted_t *pResult, bool bIO
 	{
 		m_pendingApi.erase(slot);
 
-		if (!body.empty() && ParseApiResponse(xuid, body))
+		const bool inGroup = !body.empty() && ParseApiResponse(xuid, body);
+		META_CONPRINTF("[WHITELIST] SteamGroup: API response for slot=%d xuid=%llu: %s (body_len=%u)\n",
+		               slot, (unsigned long long)xuid,
+		               inGroup ? "IN GROUP" : "NOT IN GROUP",
+		               (unsigned)body.size());
+		if (inGroup)
 			AllowPlayer(slot, xuid);
 		else
 			KickPlayer(slot);

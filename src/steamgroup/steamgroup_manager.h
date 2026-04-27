@@ -92,7 +92,7 @@ private:
 	std::vector<uint64_t> m_effectiveGroupIds;
 
 	void StartXmlFetch(uint64_t groupId, int page);
-	void StartApiFetch(int slot, uint64_t xuid);
+	bool StartApiFetch(int slot, uint64_t xuid);
 
 	void OnHTTPResponse(HTTPRequestCompleted_t *pResult, bool bIOFailure);
 
