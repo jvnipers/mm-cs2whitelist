@@ -96,23 +96,41 @@ bool WLManager::LoadFile()
 		if (trimmed.empty() || trimmed[0] == '#')
 			continue;
 
-		// Auto-detect bare group SteamID64 by account-type bits:
-		// (id64 >> 52) & 0xF == 7  ->  k_EAccountTypeClan
-		// Group ID64s start around 103582791429521408 (0x0170000000000000),
-		// user ID64s start around 76561197960265728 (0x0110000100000000) - ranges don't overlap.
+		// Detect all-digit group IDs:
+		//   - Full group ID64: (id >> 52) & 0xF == 7  (k_EAccountTypeClan, ~103582791...)
+		//   - Short 32-bit clan ID: fits in uint32, converted via 0x0170000000000000 | id
+		// User SteamID64s always start with 76561197..., so there is no ambiguity.
+		// GROUP:<id> prefix is still accepted for clarity.
 		{
-			bool allDigits = !trimmed.empty();
-			for (char c : trimmed)
-				if (c < '0' || c > '9') { allDigits = false; break; }
-
-			if (allDigits && trimmed.size() >= 15)
+			const char *numStart = trimmed.c_str();
+			if (trimmed.size() >= 6)
 			{
-				uint64_t id = std::strtoull(trimmed.c_str(), nullptr, 10);
-				if (id != 0 && ((id >> 52) & 0xF) == 7) // clan/group account type
+				char upper[7] = {};
+				for (int i = 0; i < 6; ++i)
+					upper[i] = static_cast<char>(trimmed[i] >= 'a' && trimmed[i] <= 'z' ? trimmed[i] - 32 : trimmed[i]);
+				if (std::memcmp(upper, "GROUP:", 6) == 0)
+					numStart = trimmed.c_str() + 6;
+			}
+
+			bool allDigits = (*numStart != '\0');
+			for (const char *p = numStart; *p; ++p)
+				if (*p < '0' || *p > '9') { allDigits = false; break; }
+
+			if (allDigits && *numStart != '\0')
+			{
+				uint64_t id = std::strtoull(numStart, nullptr, 10);
+				if (id != 0)
 				{
-					m_fileGroupIds.push_back(id);
-					++groupCount;
-					continue;
+					// Short 32-bit clan ID - promote to full group ID64
+					if ((id >> 32) == 0)
+						id = 0x0170000000000000ULL | id;
+
+					if (((id >> 52) & 0xF) == 7) // k_EAccountTypeClan
+					{
+						m_fileGroupIds.push_back(id);
+						++groupCount;
+						continue;
+					}
 				}
 			}
 		}
