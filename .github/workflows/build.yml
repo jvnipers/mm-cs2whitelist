@@ -119,6 +119,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Download Linux artifact
@@ -139,7 +141,7 @@ jobs:
           cd cs2whitelist-windows && zip -r ../cs2whitelist-${{ github.ref_name }}-windows.zip . && cd ..
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             cs2whitelist-${{ github.ref_name }}-linux.zip
