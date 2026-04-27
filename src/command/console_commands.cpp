@@ -1,6 +1,7 @@
 #include "common.h"
 #include "whitelist/whitelist_manager.h"
 #include "steamgroup/steamgroup_manager.h"
+#include "db/wl_database.h"
 #include "utils/utils.h"
 #include "ics2admin.h"
 
@@ -33,7 +34,19 @@ CON_COMMAND_F(mm_whitelist_reload, "Reload the whitelist file from disk.", FCVAR
 	if (g_WLManager.LoadFile())
 	{
 		g_SteamGroupManager.FetchGroups();
-		ReplyToSlot(slot, "[WHITELIST] Reloaded %d entries from disk.\n", g_WLManager.GetEntryCount());
+		if (g_WLDatabase.IsConnected())
+		{
+			g_WLDatabase.LoadEntries(g_WLManager.GetSet(),
+				[slot](int count)
+				{
+					ReplyToSlot(slot, "[WHITELIST] Reloaded %d entries from disk + %d from database.\n",
+						g_WLManager.GetEntryCount() - count, count);
+				});
+		}
+		else
+		{
+			ReplyToSlot(slot, "[WHITELIST] Reloaded %d entries from disk.\n", g_WLManager.GetEntryCount());
+		}
 	}
 	else
 	{
