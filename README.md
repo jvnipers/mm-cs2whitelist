@@ -43,29 +43,6 @@ Supported entry types:
 | `mm_whitelist_filename` | `whitelist.txt` | File name inside `cfg/cs2whitelist/`. |
 | `mm_whitelist_log` | `0` | Log failed join attempts. `0` = off, `1` = always, `2` = once per player per map. Logs to console and `addons/cs2whitelist/logs/YYYY-MM-DD.log`. |
 
-### Steam Group Whitelist
-
-Players who are members of configured Steam groups are allowed through, in addition to entries in `whitelist.txt`.
-
-Group IDs can be specified in two places — they are merged at load time:
-
-- **`whitelist.txt`** — add the bare group ID64 (e.g. `103582791429521408`) as its own line.
-- **`core.cfg`** `SteamGroups -> Groups` block, useful when you want group IDs managed separately from the player list.
-
-Configure in `cfg/cs2whitelist/core.cfg` under the `SteamGroups` block:
-
-| Key | Default | Description |
-| --- | --- | --- |
-| `Enabled` | `0` | Set to `1` to enable Steam group checks. |
-| `Method` | `xml` | `xml` — pre-fetch the full member list (no API key needed, recommended for groups < ~10 000 members). `api` — per-player async check via Steam Web API (API key required, works for any group size). |
-| `ApiKey` | _(empty)_ | Steam Web API key, required when `Method` is `api`. Get one at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) |
-| `Timeout` | `5` | Seconds to wait for an async check before kicking the player. Applies to both methods. |
-| `Groups` → `"0"` … | _(empty)_ | 64-bit Steam group IDs. Find yours at `https://steamcommunity.com/groups/<name>/memberslistxml/?xml=1`. |
-
-**XML method**: the full member list is fetched (with pagination) on plugin load and each map change. Connecting players are allowed synchronously if the fetch is done, or queued briefly if it is still in progress.
-
-**API method**: each connecting player triggers a real-time HTTP request to the Steam Web API. The player stays on the server while the request is in flight. If the request does not complete within `Timeout` seconds, the player is kicked.
-
 ### Admin commands
 
 All commands require [mm-cs2admin](https://github.com/FemboyKZ/mm-cs2admin) for in-game use.
