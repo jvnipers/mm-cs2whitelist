@@ -9,7 +9,7 @@ Metamod: Source plugin for CS2 server whitelisting. Restricts server access to a
 - Dedicated CS2 Server. (Recommended to use SteamRT3 Docker)
 - Metamod: Source 2.0.
 - (Optional) [sql_mm](https://github.com/zer0k-z/sql_mm) plugin.
-- (Optional) MySQL Database.
+  - (Optional) MySQL Database.
 - (Optional) [mm-cs2admin](https://github.com/FemboyKZ/mm-cs2admin) plugin.
 
 ### Installation
@@ -18,7 +18,7 @@ Metamod: Source plugin for CS2 server whitelisting. Restricts server access to a
 2. Download the [latest release](https://github.com/FemboyKZ/mm-cs2whitelist/releases/latest) and extract it in your server's root folder (`~/game/csgo/`)
 3. Configure the core config file in `/cfg/cs2whitelist/core.cfg`.
 4. Create a new file or rename the .example to `whitelist.txt` and add your selection of user's IDs/IPs to the file.
-    (Alternative) Configure your whitelist via the commands, or by directly modifying the database.
+    (Alternatively) Configure your whitelist via the commands, or by directly modifying the database.
 
 ### Configuration
 
@@ -84,4 +84,4 @@ ambuild
 
 ## Contributing
 
-Feel free to create PRs or issues regarding anything, but this is very much just for fkz and I will not implement bloat like funcommands.
+Feel free to create PRs or issues regarding anything, but keep in mind that this is very much just for fkz and I won't spend time adding features I won't use.
