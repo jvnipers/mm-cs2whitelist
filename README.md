@@ -1,6 +1,8 @@
 # CS2 Whitelist
 
-Metamod: Source plugin for CS2 server whitelisting. 
+![Downloads](https://img.shields.io/github/downloads/FemboyKZ/mm-cs2whitelist/total?style=flat-square) ![Last commit](https://img.shields.io/github/last-commit/FemboyKZ/mm-cs2whitelist?style=flat-square) ![Open issues](https://img.shields.io/github/issues/FemboyKZ/mm-cs2whitelist?style=flat-square) ![Closed issues](https://img.shields.io/github/issues-closed/FemboyKZ/mm-cs2whitelist?style=flat-square) ![Size](https://img.shields.io/github/repo-size/FemboyKZ/mm-cs2whitelist?style=flat-square) ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/FemboyKZ/mm-cs2whitelist/build.yml?style=flat-square)
+
+Metamod: Source plugin for CS2 server whitelisting.
 
 Restricts server access to a list of Steam Group memebers, SteamIDs and IP addresses defined in a text file or in a database.
 
